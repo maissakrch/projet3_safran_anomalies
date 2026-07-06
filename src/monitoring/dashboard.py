@@ -11,7 +11,7 @@ from logger import log
 # ---------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------
-
+ALERT_THRESHOLD = 10  # seuil d'alerte : 10% d'anomalies
 PREDICTIONS_PATH = "data/predictions.csv"
 
 app = Dash(__name__)
@@ -37,6 +37,9 @@ app.layout = html.Div([
         html.H1("Safran Data Systems", style={"color": "white", "margin": "0", "fontSize": "28px"}),
         html.P("Dashboard Monitoring — Détection d'Anomalies Moteurs", style={"color": "#1ABC9C", "margin": "5px 0 0 0"}),
     ], style={"backgroundColor": "#0D1B2A", "padding": "20px 30px"}),
+
+    # Zone d'alerte
+    html.Div(id="alert-zone"),
 
     # KPIs
     html.Div(id="kpis", style={"display": "flex", "gap": "20px", "padding": "20px 30px", "backgroundColor": "#F2F3F4"}),
@@ -83,7 +86,8 @@ def update_unit_options(n):
     return [{"label": f"Unité {u}", "value": u} for u in units]
 
 @app.callback(
-    [Output("kpis", "children"),
+    [Output("alert-zone", "children"),
+     Output("kpis", "children"),
      Output("anomaly-timeline", "figure"),
      Output("anomaly-pie", "figure"),
      Output("score-distribution", "figure"),
@@ -98,7 +102,7 @@ def update_dashboard(n_intervals, n_clicks, selected_units):
     if df.empty:
         empty_fig = go.Figure()
         empty_fig.update_layout(title="Aucune donnée disponible")
-        return [], empty_fig, empty_fig, empty_fig, empty_fig
+        return html.Div(), [], empty_fig, empty_fig, empty_fig, empty_fig
 
     # Filtrage par unité
     if selected_units:
@@ -108,6 +112,14 @@ def update_dashboard(n_intervals, n_clicks, selected_units):
     anomalies = int(df["anomalie"].sum())
     normaux = total - anomalies
     taux = round(anomalies / total * 100, 1) if total > 0 else 0
+    alert_banner = html.Div()
+    if taux > ALERT_THRESHOLD:
+        log(f"⚠️ ALERTE : taux d'anomalies à {taux}%, au-dessus du seuil de {ALERT_THRESHOLD}%")
+        alert_banner = html.Div(
+            f"⚠️ ALERTE — Taux d'anomalies élevé : {taux}% (seuil : {ALERT_THRESHOLD}%)",
+            style={"backgroundColor": "#C0392B", "color": "white", "padding": "15px",
+                "textAlign": "center", "fontWeight": "bold", "borderRadius": "5px"}
+        )
 
     # ── KPIs
     kpi_style = {"backgroundColor": "white", "padding": "20px", "borderRadius": "8px",
@@ -187,7 +199,7 @@ def update_dashboard(n_intervals, n_clicks, selected_units):
     else:
         fig_unit = go.Figure()
 
-    return kpis, fig_timeline, fig_pie, fig_score, fig_unit
+    return alert_banner, kpis, fig_timeline, fig_pie, fig_score, fig_unit
 
 # ---------------------------------------------------------
 # LANCEMENT
